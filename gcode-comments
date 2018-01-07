@@ -1,0 +1,110 @@
+#!/usr/bin/env node
+
+var fs =               require('fs')
+var nCommentOffset =   50;
+
+if (process.argv.length < 3)             { Syntax(); }
+
+var strInputFile =    process.argv[2];
+var strOutputFile =   strInputFile.replace(/ /g, '').replace(/.gcode/i, '') + '_commented.gcode';
+// Read the input file and conditionally look up the first few characters to form the comment
+// to be added to the version for the output file
+fs.readFile(strInputFile, 'utf8', function(errRead, dataIn) {
+  if (errRead) { console.log(errRead + '\n'); process.exit(2); }
+
+  var fd =      fs.openSync(strOutputFile, 'w');
+  var aLines =  dataIn.split(/\r?\n/);
+  var line =    '';
+  var spaces =  '';
+
+  for (var i=0; i < aLines.length; i++) {
+    line = aLines[i];
+    if (line[0] == ';' || line.length < 2) {
+      console.log(line);
+      fs.appendFileSync(fd, line + '\n');
+    } else {
+      spaces = ' '.repeat(nCommentOffset - line.length);
+      switch (line[0]) {
+        case 'G': line += spaces + '; Move and/or extrude to the indicated point'; break;
+        // Special case for M, we're breaking out the possibilities
+        case 'M':
+          switch (line.substr(0,6)) {
+            case "M205 X":
+              line += spaces + '; Adjust jerk speed';
+              break;
+            case "M106 S":
+              line += spaces + '; Turn on fan';
+              break;
+            case "M107":
+              line += spaces + '; Turn off fan';
+              break;
+            case "M104 S":
+              line += spaces + '; Set extruder temperature';
+            break;
+            case "M109 S":
+              line += spaces + '; Set extruder temperature and wait (blocking)';
+              break;
+            case "M116":
+              line += spaces + '; Wait until temperature(s) set (blocking)';
+              break;
+            case "M117":
+            case "M118":
+              line += spaces + '; Display message';
+              break;
+            default:
+              line += spaces + '; M???';
+              break;
+          }
+          break;
+        case 'T': line += spaces + '; Select tool nnn'; break;
+        case 'S': line += spaces + '; Command parameter, such as time in seconds; temperatures; voltage to send to a motor'; break;
+        case 'P': line += spaces + '; Command parameter, such as time in milliseconds; proportional (Kp) in PID Tuning'; break;
+        case 'X': line += spaces + '; An X coordinate, usually to move to'; break;
+        case 'Y': line += spaces + '; A Y coordinate, usually to move to'; break;
+        case 'Z': line += spaces + '; A Z coordinate, usually to move to'; break;
+        case 'I': line += spaces + '; Parameter - X-offset in arc move; integral (Ki) in PID Tuning'; break;
+        case 'J': line += spaces + '; Parameter - Y-offset in arc move'; break;
+        case 'D': line += spaces + '; Parameter - used for diameter; derivative (Kd) in PID Tuning'; break;
+        case 'H': line += spaces + '; Parameter - used for heater number in PID Tuning'; break;
+        case 'F': line += spaces + '; Feedrate in mm per minute. (Speed of print head movement)'; break;
+        case 'R': line += spaces + '; Parameter - used for temperatures'; break;
+        case 'Q': line += spaces + '; Parameter - not currently used'; break;
+        case 'E': line += spaces + '; Length of extrusion'; break;
+        case 'N': line += spaces + '; Line number used to request repeat transmission in the case of communications errors'; break;
+        default:  line += spaces + '; Unknown code'; break;
+      }
+      console.log(line);
+      fs.appendFileSync(fd, line + '\n');
+    }
+  }
+
+  console.log('Input:  ', strInputFile);
+  console.log('Output: ', strOutputFile, '\n');
+  fs.closeSync(fd);
+  process.exit(0);
+});
+
+function Syntax() {
+  console.log('Syntax:\n   gcode-comments FileNameInCurrentDirectory.gcode\n');
+  process.exit(1);
+}
+
+var aGcodeCommands = [
+  {'G': 'Standard GCode command, such as move to a point'},
+  {'M': 'RepRap-defined command, such as turn on a cooling fan'},
+  {'T': 'Select tool nnn'},
+  {'S': 'Command parameter, such as time in seconds; temperatures; voltage to send to a motor'},
+  {'P': 'Command parameter, such as time in milliseconds; proportional (Kp) in PID Tuning'},
+  {'X': 'A X coordinate, usually to move to. This can be an Integer or Fractional number.'},
+  {'Y': 'A Y coordinate, usually to move to. This can be an Integer or Fractional number.'},
+  {'Z': 'A Z coordinate, usually to move to. This can be an Integer or Fractional number.'},
+  {'I': 'Parameter - X-offset in arc move; integral (Ki) in PID Tuning'},
+  {'J': 'Parameter - Y-offset in arc move'},
+  {'D': 'Parameter - used for diameter; derivative (Kd) in PID Tuning'},
+  {'H': 'Parameter - used for heater number in PID Tuning'},
+  {'F': 'Feedrate in mm per minute. (Speed of print head movement)'},
+  {'R': 'Parameter - used for temperatures'},
+  {'Q': 'Parameter - not currently used'},
+  {'E': 'Length of extrudate. This is exactly like X, Y and Z, but for the length of filament to consume.'},
+  {'N': 'Line number. Used to request repeat transmission in the case of communications errors.'},
+]
